@@ -38,7 +38,6 @@ export function renderProfil({ root, session }) {
   form.addEventListener('submit', async (e) => {
     e.preventDefault()
     setNote('')
-    setBusy(true)
     const fd = new FormData(form)
     const nama = String(fd.get('nama') ?? '').trim()
     const gelar = String(fd.get('gelar') ?? '').trim()
@@ -46,6 +45,7 @@ export function renderProfil({ root, session }) {
 
     try {
       if (!nama) throw new Error('Nama wajib diisi.')
+      setBusy(true)
       await updateMyProfile(userId, { nama, gelar, unit })
       toast({ kind: 'success', message: 'Profil berhasil disimpan.' })
     } catch (err) {
@@ -88,4 +88,3 @@ function inputField({ label, name, placeholder = '', required = false }) {
     el('input', { class: 'input', name, type: 'text', placeholder, required: required ? 'true' : undefined }),
   ])
 }
-

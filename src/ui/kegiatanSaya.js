@@ -51,31 +51,37 @@ export function renderKegiatanSaya({ root, session }) {
   root.appendChild(listCard)
 
   const userId = session?.user?.id
+  const draftKey = userId ? `draft:kegiatan:${userId}` : null
   let items = []
   let editingId = null
+  let draft = readDraft()
 
-  actions.querySelector('button[type="button"]').addEventListener('click', () => setEditing(null))
+  const btnCancel = actions.querySelector('button[type="button"]')
+
+  btnCancel.addEventListener('click', () => {
+    if (editingId) {
+      setEditing(null)
+      return
+    }
+    draft = null
+    if (draftKey) sessionStorage.removeItem(draftKey)
+    applyDraftToForm()
+    setNote('')
+  })
+
+  wireDraftPersistence()
 
   form.addEventListener('submit', async (e) => {
     e.preventDefault()
     setNote('')
-    setBusy(true)
-
-    const fd = new FormData(form)
-    const payload = {
-      userId,
-      tanggalMulai: String(fd.get('tanggalMulai') ?? ''),
-      tanggalSelesai: String(fd.get('tanggalSelesai') ?? ''),
-      judul: String(fd.get('judul') ?? '').trim(),
-      lokasi: String(fd.get('lokasi') ?? '').trim(),
-      keterangan: String(fd.get('keterangan') ?? '').trim(),
-    }
+    const payload = readPayload()
 
     try {
       if (!payload.tanggalMulai || !payload.tanggalSelesai) throw new Error('Tanggal mulai dan selesai wajib diisi.')
       if (payload.tanggalSelesai < payload.tanggalMulai) throw new Error('Tanggal selesai tidak boleh lebih awal dari tanggal mulai.')
       if (!payload.judul) throw new Error('Kegiatan wajib diisi.')
 
+      setBusy(true)
       if (editingId) {
         await updateKegiatan({ id: editingId, ...payload })
         toast({ kind: 'success', message: 'Kegiatan berhasil diperbarui.' })
@@ -85,6 +91,8 @@ export function renderKegiatanSaya({ root, session }) {
       }
 
       await load()
+      draft = null
+      if (draftKey) sessionStorage.removeItem(draftKey)
       setEditing(null)
     } catch (err) {
       setNote(err?.message ? String(err.message) : 'Gagal menyimpan.')
@@ -93,6 +101,7 @@ export function renderKegiatanSaya({ root, session }) {
     }
   })
 
+  applyDraftToForm()
   load()
 
   async function load() {
@@ -154,13 +163,17 @@ export function renderKegiatanSaya({ root, session }) {
     editingId = it?.id ?? null
     formTitle.textContent = editingId ? 'Edit kegiatan' : 'Tambah kegiatan'
     form.querySelector('button[type="submit"]').textContent = editingId ? 'Simpan perubahan' : 'Simpan'
-    actions.querySelector('button[type="button"]').textContent = editingId ? 'Batal' : 'Bersihkan'
+    btnCancel.textContent = editingId ? 'Batal' : 'Bersihkan'
 
-    form.tanggalMulai.value = it?.tanggal_mulai ?? ''
-    form.tanggalSelesai.value = it?.tanggal_selesai ?? ''
-    form.judul.value = it?.judul ?? ''
-    form.lokasi.value = it?.lokasi ?? ''
-    form.keterangan.value = it?.keterangan ?? ''
+    if (editingId) {
+      form.tanggalMulai.value = it?.tanggal_mulai ?? ''
+      form.tanggalSelesai.value = it?.tanggal_selesai ?? ''
+      form.judul.value = it?.judul ?? ''
+      form.lokasi.value = it?.lokasi ?? ''
+      form.keterangan.value = it?.keterangan ?? ''
+    } else {
+      applyDraftToForm()
+    }
     setNote('')
     window.scrollTo({ top: 0, behavior: 'smooth' })
   }
@@ -173,6 +186,65 @@ export function renderKegiatanSaya({ root, session }) {
   function setBusy(busy) {
     for (const input of root.querySelectorAll('input,textarea,button,select')) input.disabled = busy
     root.classList.toggle('is-busy', busy)
+  }
+
+  function readDraft() {
+    if (!draftKey) return null
+    try {
+      const raw = sessionStorage.getItem(draftKey)
+      if (!raw) return null
+      const obj = JSON.parse(raw)
+      if (!obj || typeof obj !== 'object') return null
+      return {
+        tanggalMulai: String(obj.tanggalMulai ?? ''),
+        tanggalSelesai: String(obj.tanggalSelesai ?? ''),
+        judul: String(obj.judul ?? ''),
+        lokasi: String(obj.lokasi ?? ''),
+        keterangan: String(obj.keterangan ?? ''),
+      }
+    } catch {
+      return null
+    }
+  }
+
+  function applyDraftToForm() {
+    form.tanggalMulai.value = draft?.tanggalMulai ?? ''
+    form.tanggalSelesai.value = draft?.tanggalSelesai ?? ''
+    form.judul.value = draft?.judul ?? ''
+    form.lokasi.value = draft?.lokasi ?? ''
+    form.keterangan.value = draft?.keterangan ?? ''
+  }
+
+  function wireDraftPersistence() {
+    if (!draftKey) return
+    const handler = () => {
+      if (editingId) return
+      draft = {
+        tanggalMulai: String(form.tanggalMulai.value ?? ''),
+        tanggalSelesai: String(form.tanggalSelesai.value ?? ''),
+        judul: String(form.judul.value ?? ''),
+        lokasi: String(form.lokasi.value ?? ''),
+        keterangan: String(form.keterangan.value ?? ''),
+      }
+      sessionStorage.setItem(draftKey, JSON.stringify(draft))
+    }
+
+    for (const control of [form.tanggalMulai, form.tanggalSelesai, form.judul, form.lokasi, form.keterangan]) {
+      control.addEventListener('input', handler)
+      control.addEventListener('change', handler)
+    }
+  }
+
+  function readPayload() {
+    const fd = new FormData(form)
+    return {
+      userId,
+      tanggalMulai: String(fd.get('tanggalMulai') ?? ''),
+      tanggalSelesai: String(fd.get('tanggalSelesai') ?? ''),
+      judul: String(fd.get('judul') ?? '').trim(),
+      lokasi: String(fd.get('lokasi') ?? '').trim(),
+      keterangan: String(fd.get('keterangan') ?? '').trim(),
+    }
   }
 }
 
@@ -189,4 +261,3 @@ function textareaField({ label, name, placeholder = '' }) {
     el('textarea', { class: 'input textarea', name, placeholder, rows: '3' }),
   ])
 }
-
