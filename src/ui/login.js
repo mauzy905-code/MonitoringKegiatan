@@ -7,7 +7,7 @@ export function renderLogin({ root, onLogin, onRegister }) {
   const card = el('div', { class: 'card auth__card' })
 
   const title = el('h1', { class: 'h1', text: 'Masuk' })
-  const subtitle = el('p', { class: 'muted', text: 'Gunakan email dan password untuk melihat & mengisi kegiatan.' })
+  const subtitle = el('p', { class: 'muted', text: 'Login menggunakan NIP (ASN) atau NIK (Non ASN) dan password.' })
 
   const modeTabs = el('div', { class: 'tabs' }, [
     el('button', { class: 'tabs__btn tabs__btn--active', type: 'button', dataset: { mode: 'login' }, text: 'Login' }),
@@ -16,10 +16,19 @@ export function renderLogin({ root, onLogin, onRegister }) {
 
   const form = el('form', { class: 'form' })
 
+  const jenisField = fieldSelect({
+    label: 'Jenis pegawai',
+    name: 'jenisPegawai',
+    options: [
+      { value: 'asn', label: 'ASN (NIP)' },
+      { value: 'non-asn', label: 'Non ASN (NIK)' },
+    ],
+  })
+
+  const nomorIdField = fieldText({ label: 'NIP', name: 'nomorId', placeholder: 'Isi NIP (18 digit)' })
   const namaField = fieldText({ label: 'Nama', name: 'nama', placeholder: 'Contoh: Suriami' })
   const gelarField = fieldText({ label: 'Gelar', name: 'gelar', placeholder: 'Contoh: SKM (opsional)' })
   const unitField = fieldText({ label: 'Unit', name: 'unit', placeholder: 'Contoh: Tata Usaha (opsional)' })
-  const emailField = fieldText({ label: 'Email', name: 'email', type: 'email', placeholder: 'nama@rsud.go.id' })
   const passField = fieldText({ label: 'Password', name: 'password', type: 'password', placeholder: 'Minimal 6 karakter' })
 
   const note = el('div', { class: 'hint' })
@@ -27,15 +36,16 @@ export function renderLogin({ root, onLogin, onRegister }) {
     el('button', { class: 'btn btn--primary', type: 'submit', text: 'Masuk' }),
   ])
 
+  form.appendChild(jenisField)
+  form.appendChild(nomorIdField)
   form.appendChild(namaField)
   form.appendChild(gelarField)
   form.appendChild(unitField)
-  form.appendChild(emailField)
   form.appendChild(passField)
   form.appendChild(note)
   form.appendChild(actions)
 
-  const footer = el('div', { class: 'auth__footer muted', html: 'Jika Anda baru daftar, cek email untuk verifikasi (jika fitur verifikasi email aktif).' })
+  const footer = el('div', { class: 'auth__footer muted', html: 'Jika verifikasi email masih aktif di Supabase, sebaiknya dimatikan agar tidak perlu email.' })
 
   card.appendChild(title)
   card.appendChild(subtitle)
@@ -47,6 +57,11 @@ export function renderLogin({ root, onLogin, onRegister }) {
 
   let mode = 'login'
   applyMode()
+
+  jenisField.querySelector('select').addEventListener('change', () => {
+    applyNomorIdLabel()
+    setNote('')
+  })
 
   modeTabs.addEventListener('click', (e) => {
     const btn = e.target?.closest?.('button[data-mode]')
@@ -61,7 +76,9 @@ export function renderLogin({ root, onLogin, onRegister }) {
   form.addEventListener('submit', async (e) => {
     e.preventDefault()
     const fd = new FormData(form)
-    const email = String(fd.get('email') ?? '').trim()
+    const jenisPegawai = String(fd.get('jenisPegawai') ?? 'asn')
+    const nomorIdRaw = String(fd.get('nomorId') ?? '')
+    const nomorId = nomorIdRaw.replaceAll(/\D/g, '')
     const password = String(fd.get('password') ?? '')
     const nama = String(fd.get('nama') ?? '').trim()
     const gelar = String(fd.get('gelar') ?? '').trim()
@@ -72,10 +89,12 @@ export function renderLogin({ root, onLogin, onRegister }) {
 
     try {
       if (mode === 'login') {
-        await onLogin?.({ email, password })
+        validateNomorId({ jenisPegawai, nomorId })
+        await onLogin?.({ jenisPegawai, nomorId, password })
       } else {
         if (!nama) throw new Error('Nama wajib diisi saat daftar.')
-        await onRegister?.({ email, password, nama, gelar, unit })
+        validateNomorId({ jenisPegawai, nomorId })
+        await onRegister?.({ jenisPegawai, nomorId, password, nama, gelar, unit })
       }
     } catch (err) {
       setNote(err?.message ? String(err.message) : 'Terjadi kesalahan.')
@@ -88,10 +107,20 @@ export function renderLogin({ root, onLogin, onRegister }) {
     const isRegister = mode === 'register'
     title.textContent = isRegister ? 'Daftar' : 'Masuk'
     actions.querySelector('button[type="submit"]').textContent = isRegister ? 'Daftar' : 'Masuk'
+    jenisField.classList.toggle('is-hidden', false)
+    nomorIdField.classList.toggle('is-hidden', false)
     namaField.classList.toggle('is-hidden', !isRegister)
     gelarField.classList.toggle('is-hidden', !isRegister)
     unitField.classList.toggle('is-hidden', !isRegister)
+    applyNomorIdLabel()
     setNote('')
+  }
+
+  function applyNomorIdLabel() {
+    const jenis = String(form.jenisPegawai.value ?? 'asn')
+    const isAsn = jenis === 'asn'
+    nomorIdField.querySelector('.field__label').textContent = isAsn ? 'NIP' : 'NIK'
+    nomorIdField.querySelector('input').placeholder = isAsn ? 'Isi NIP (18 digit)' : 'Isi NIK (16 digit)'
   }
 
   function setNote(msg) {
@@ -119,3 +148,19 @@ function fieldText({ label, name, type = 'text', placeholder = '' }) {
   return wrap
 }
 
+function fieldSelect({ label, name, options }) {
+  const wrap = el('label', { class: 'field' })
+  wrap.appendChild(el('div', { class: 'field__label', text: label }))
+  const select = el('select', { class: 'input', name })
+  for (const opt of options) select.appendChild(el('option', { value: opt.value, text: opt.label }))
+  wrap.appendChild(select)
+  return wrap
+}
+
+function validateNomorId({ jenisPegawai, nomorId }) {
+  const jenis = String(jenisPegawai ?? '').toLowerCase()
+  if (!nomorId) throw new Error(jenis === 'asn' ? 'NIP wajib diisi.' : 'NIK wajib diisi.')
+  if (!/^\d+$/.test(nomorId)) throw new Error(jenis === 'asn' ? 'NIP harus angka.' : 'NIK harus angka.')
+  if (jenis === 'asn' && nomorId.length !== 18) throw new Error('NIP harus 18 digit.')
+  if (jenis !== 'asn' && nomorId.length !== 16) throw new Error('NIK harus 16 digit.')
+}

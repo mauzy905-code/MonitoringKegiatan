@@ -4,7 +4,7 @@ Website monitoring kegiatan pegawai (Supabase + GitHub Pages).
 
 ## Fitur
 
-- Login / Daftar (email + password)
+- Login / Daftar (NIP untuk ASN / NIK untuk Non ASN + password)
 - Monitoring kegiatan semua pegawai (filter tanggal, unit, pencarian, export CSV, print)
 - Kegiatan saya (tambah/edit/hapus)
 - Profil (isi nama, gelar, unit)
@@ -14,8 +14,8 @@ Website monitoring kegiatan pegawai (Supabase + GitHub Pages).
 1. Buat project di Supabase.
 2. Buka SQL Editor, jalankan `supabase.sql`.
 3. Auth:
-   - Aktifkan Email provider (email + password)
-   - Jika Email confirmation aktif, user baru perlu verifikasi email sebelum login.
+   - Aktifkan Email provider (digunakan internal oleh sistem)
+   - Matikan Email confirmation agar pegawai tidak perlu email sungguhan untuk verifikasi.
 4. Realtime:
    - Pastikan Realtime aktif (script sudah menambahkan tabel `kegiatan` ke publication `supabase_realtime`).
 

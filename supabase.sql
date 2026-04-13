@@ -5,8 +5,14 @@ create table if not exists public.profiles (
   nama text not null default '',
   gelar text,
   unit text,
+  jenis_pegawai text,
+  nip text,
+  nik text,
   created_at timestamptz not null default now()
 );
+
+create unique index if not exists profiles_nip_unique on public.profiles (nip) where nip is not null;
+create unique index if not exists profiles_nik_unique on public.profiles (nik) where nik is not null;
 
 create or replace function public.handle_new_user()
 returns trigger
@@ -14,12 +20,21 @@ language plpgsql
 security definer
 as $$
 begin
-  insert into public.profiles (id, nama, gelar, unit)
+  insert into public.profiles (id, nama, gelar, unit, jenis_pegawai, nip, nik)
   values (
     new.id,
     coalesce(new.raw_user_meta_data->>'nama', ''),
     nullif(new.raw_user_meta_data->>'gelar', ''),
-    nullif(new.raw_user_meta_data->>'unit', '')
+    nullif(new.raw_user_meta_data->>'unit', ''),
+    nullif(lower(new.raw_user_meta_data->>'jenis_pegawai'), ''),
+    case
+      when lower(new.raw_user_meta_data->>'jenis_pegawai') = 'asn' then nullif(new.raw_user_meta_data->>'nomor_id', '')
+      else null
+    end,
+    case
+      when lower(new.raw_user_meta_data->>'jenis_pegawai') <> 'asn' then nullif(new.raw_user_meta_data->>'nomor_id', '')
+      else null
+    end
   )
   on conflict (id) do nothing;
 
@@ -110,4 +125,3 @@ to authenticated
 using (user_id = auth.uid());
 
 alter publication supabase_realtime add table public.kegiatan;
-

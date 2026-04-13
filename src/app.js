@@ -39,14 +39,14 @@ export function startApp(root) {
       routeCleanup = null
       renderLogin({
         root,
-        onLogin: async ({ email, password }) => {
-          await signInWithPassword({ email, password })
+        onLogin: async ({ jenisPegawai, nomorId, password }) => {
+          await signInWithPassword({ jenisPegawai, nomorId, password })
           toast({ kind: 'success', message: 'Berhasil masuk.' })
         },
-        onRegister: async ({ email, password, nama, gelar, unit }) => {
-          const res = await signUpWithPassword({ email, password, nama, gelar, unit })
+        onRegister: async ({ jenisPegawai, nomorId, password, nama, gelar, unit }) => {
+          const res = await signUpWithPassword({ jenisPegawai, nomorId, password, nama, gelar, unit })
           if (res?.user && !res?.session) {
-            toast({ kind: 'info', message: 'Pendaftaran berhasil. Silakan cek email untuk verifikasi, lalu login.' })
+            toast({ kind: 'info', message: 'Pendaftaran berhasil. Silakan login.' })
           } else {
             toast({ kind: 'success', message: 'Pendaftaran berhasil.' })
           }
@@ -93,4 +93,3 @@ function parseRoute(hash) {
   if (h.startsWith('profil')) return 'profil'
   return 'monitoring'
 }
-

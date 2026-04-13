@@ -1,5 +1,16 @@
 import { supabase } from './supabaseClient.js'
 
+function normalizeDigits(s) {
+  return String(s ?? '').replaceAll(/\D/g, '')
+}
+
+export function toAuthEmail({ jenisPegawai, nomorId }) {
+  const digits = normalizeDigits(nomorId)
+  const kind = String(jenisPegawai ?? '').toLowerCase()
+  const domain = kind === 'asn' ? 'asn.local' : 'nonasn.local'
+  return `${digits}@${domain}`
+}
+
 export async function getSession() {
   const { data, error } = await supabase.auth.getSession()
   if (error) throw error
@@ -10,13 +21,15 @@ export function onAuthStateChange(callback) {
   return supabase.auth.onAuthStateChange((_event, session) => callback(session))
 }
 
-export async function signInWithPassword({ email, password }) {
+export async function signInWithPassword({ jenisPegawai, nomorId, password }) {
+  const email = toAuthEmail({ jenisPegawai, nomorId })
   const { data, error } = await supabase.auth.signInWithPassword({ email, password })
   if (error) throw error
   return data
 }
 
-export async function signUpWithPassword({ email, password, nama, gelar, unit }) {
+export async function signUpWithPassword({ jenisPegawai, nomorId, password, nama, gelar, unit }) {
+  const email = toAuthEmail({ jenisPegawai, nomorId })
   const { data, error } = await supabase.auth.signUp({
     email,
     password,
@@ -25,6 +38,8 @@ export async function signUpWithPassword({ email, password, nama, gelar, unit })
         nama: nama ?? '',
         gelar: gelar ?? '',
         unit: unit ?? '',
+        jenis_pegawai: String(jenisPegawai ?? '').toLowerCase(),
+        nomor_id: normalizeDigits(nomorId),
       },
     },
   })
@@ -139,4 +154,3 @@ export function subscribeKegiatanChanges(onChange) {
     supabase.removeChannel(channel)
   }
 }
-
